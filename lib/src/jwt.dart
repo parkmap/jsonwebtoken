@@ -5,6 +5,51 @@ import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import './utils.dart';
 
 class JWT {
+  /// Get Only Payload from a token.
+  ///
+  static JWT getPayload(String token) {
+    try {
+      final parts = token.split('.');
+
+      Map<String, dynamic> header = jsonBase64.decode(base64Padded(parts[0]));
+
+      if (header['typ'] != 'JWT') {
+        throw JWTInvalidError('not a jwt');
+      }
+
+      dynamic payload;
+
+      try {
+        payload = jsonBase64.decode(base64Padded(parts[1]));
+      } catch (ex) {
+        payload = utf8.decode(base64.decode(base64Padded(parts[1])));
+      }
+
+      if (payload is Map) {
+        // exp
+        if (payload.containsKey('exp')) {
+          final exp =
+              DateTime.fromMillisecondsSinceEpoch(payload['exp'] * 1000);
+          if (exp.isBefore(DateTime.now())) {
+            throw JWTExpiredError();
+          }
+        }
+
+        // nbf
+        if (payload.containsKey('nbf')) {
+          final nbf =
+              DateTime.fromMillisecondsSinceEpoch(payload['nbf'] * 1000);
+          if (nbf.isAfter(DateTime.now())) {
+            throw JWTNotActiveError();
+          }
+        }
+      }
+      return JWT(payload);
+    } catch (ex) {
+      throw JWTInvalidError('invalid token');
+    }
+  }
+
   /// Verify a token.
   ///
   /// `key` must be
